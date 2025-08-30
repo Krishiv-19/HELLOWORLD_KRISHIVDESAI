@@ -1,0 +1,1781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>HydroGen Pro - Advanced H2 Infrastructure</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --primary-green: #00ff88;
+            --primary-dark: #00cc6a;
+            --secondary-blue: #0066ff;
+            --accent-purple: #8b5cf6;
+            --dark-bg: #0a0a0a;
+            --card-bg: #1a1a1a;
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--dark-bg);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+            position: fixed;
+            width: 100%;
+        }
+
+        /* Advanced glassmorphism container */
+        .app-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+        }
+
+        /* Enhanced status bar with gradient */
+        .status-bar {
+            height: 50px;
+            background: linear-gradient(135deg, var(--primary-green) 0%, var(--secondary-blue) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            color: #000;
+            font-weight: 600;
+            font-size: 16px;
+            z-index: 2000;
+            box-shadow: 0 4px 30px rgba(0, 255, 136, 0.3);
+            backdrop-filter: blur(20px);
+        }
+
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .app-logo {
+            font-size: 24px;
+            animation: rotate 10s linear infinite;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .status-right {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            font-size: 14px;
+        }
+
+        .signal-bars {
+            display: flex;
+            gap: 2px;
+        }
+
+        .signal-bar {
+            width: 3px;
+            background: #000;
+            border-radius: 1px;
+            animation: signal 2s ease-in-out infinite;
+        }
+
+        .signal-bar:nth-child(1) { height: 8px; animation-delay: 0s; }
+        .signal-bar:nth-child(2) { height: 12px; animation-delay: 0.2s; }
+        .signal-bar:nth-child(3) { height: 16px; animation-delay: 0.4s; }
+        .signal-bar:nth-child(4) { height: 20px; animation-delay: 0.6s; }
+
+        @keyframes signal {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        /* Advanced map container with overlay effects */
+        .map-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(45deg, #00ff88, #0066ff, #8b5cf6, #00ff88);
+            background-size: 400% 400%;
+            animation: gradientShift 8s ease infinite;
+            padding: 3px;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+            filter: contrast(1.3) brightness(1.1) saturate(1.2);
+            border: 2px solid var(--primary-green);
+            box-shadow: 
+                inset 0 0 50px rgba(0, 255, 136, 0.2),
+                0 0 100px rgba(0, 255, 136, 0.3);
+            position: relative;
+        }
+
+        #map::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, 
+                rgba(0, 255, 136, 0.1) 0%, 
+                transparent 25%, 
+                transparent 75%, 
+                rgba(0, 102, 255, 0.1) 100%);
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* Map corner highlights */
+        .map-corners {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 1001;
+        }
+
+        .corner {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border: 4px solid var(--primary-green);
+            animation: cornerPulse 3s ease-in-out infinite;
+        }
+
+        .corner.top-left {
+            top: 20px;
+            left: 20px;
+            border-right: none;
+            border-bottom: none;
+            border-radius: 12px 0 0 0;
+        }
+
+        .corner.top-right {
+            top: 20px;
+            right: 20px;
+            border-left: none;
+            border-bottom: none;
+            border-radius: 0 12px 0 0;
+        }
+
+        .corner.bottom-left {
+            bottom: 140px;
+            left: 20px;
+            border-right: none;
+            border-top: none;
+            border-radius: 0 0 0 12px;
+        }
+
+        .corner.bottom-right {
+            bottom: 140px;
+            right: 20px;
+            border-left: none;
+            border-top: none;
+            border-radius: 0 0 12px 0;
+        }
+
+        @keyframes cornerPulse {
+            0%, 100% { 
+                opacity: 0.6; 
+                box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+            }
+            50% { 
+                opacity: 1; 
+                box-shadow: 0 0 40px rgba(0, 255, 136, 0.8);
+            }
+        }
+
+        /* Floating HUD overlay */
+        .hud-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            z-index: 1500;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+        }
+
+        .hud-panel {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 16px;
+            color: var(--text-primary);
+            font-size: 14px;
+            pointer-events: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            min-width: 200px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary-green);
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Enhanced floating action buttons */
+        .fab-container {
+            position: absolute;
+            right: 20px;
+            bottom: 120px;
+            z-index: 1500;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .fab {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-green) 0%, var(--primary-dark) 100%);
+            border: none;
+            color: #000;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 32px rgba(0, 255, 136, 0.4);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .fab::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s;
+        }
+
+        .fab:hover::before {
+            left: 100%;
+        }
+
+        .fab:active {
+            transform: scale(0.95);
+        }
+
+        .fab.secondary {
+            width: 56px;
+            height: 56px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            color: var(--text-primary);
+            font-size: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .fab.pulse {
+            animation: fabPulse 2s infinite;
+        }
+
+        @keyframes fabPulse {
+            0% { box-shadow: 0 8px 32px rgba(0, 255, 136, 0.4); }
+            50% { box-shadow: 0 8px 32px rgba(0, 255, 136, 0.8), 0 0 0 10px rgba(0, 255, 136, 0.1); }
+            100% { box-shadow: 0 8px 32px rgba(0, 255, 136, 0.4); }
+        }
+
+        /* Advanced bottom sheet with better animations */
+        .bottom-sheet {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, var(--card-bg) 0%, #2d2d2d 100%);
+            border-radius: 24px 24px 0 0;
+            transform: translateY(calc(100% - 100px));
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1600;
+            max-height: 90vh;
+            box-shadow: 0 -10px 50px rgba(0, 0, 0, 0.6);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(20px);
+        }
+
+        .bottom-sheet.expanded {
+            transform: translateY(0);
+        }
+
+        .sheet-handle {
+            width: 48px;
+            height: 5px;
+            background: var(--border-color);
+            border-radius: 3px;
+            margin: 16px auto;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .sheet-handle:hover {
+            background: var(--primary-green);
+            width: 60px;
+        }
+
+        .sheet-header {
+            padding: 0 24px 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sheet-title {
+            font-size: 22px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary-green), var(--secondary-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .sheet-subtitle {
+            font-size: 15px;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .sheet-content {
+            padding: 24px;
+            overflow-y: auto;
+            max-height: calc(90vh - 140px);
+        }
+
+        /* Enhanced tab navigation */
+        .tab-nav {
+            display: flex;
+            background: var(--glass-bg);
+            border-radius: 16px;
+            padding: 6px;
+            margin-bottom: 24px;
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 14px 8px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, var(--primary-green), var(--secondary-blue));
+            color: #000;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Advanced layer toggles */
+        .layer-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .layer-toggle:hover {
+            background: var(--glass-bg);
+            margin: 0 -12px;
+            padding: 20px 12px;
+            border-radius: 12px;
+        }
+
+        .layer-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .layer-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .layer-icon::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%);
+            transform: translateX(-100%);
+            transition: transform 0.6s;
+        }
+
+        .layer-toggle:hover .layer-icon::before {
+            transform: translateX(100%);
+        }
+
+        .layer-icon.infrastructure { 
+            background: linear-gradient(135deg, var(--primary-green), var(--primary-dark)); 
+        }
+        .layer-icon.renewables { 
+            background: linear-gradient(135deg, #ffa500, #ff6b35); 
+        }
+        .layer-icon.demand { 
+            background: linear-gradient(135deg, #ff6b35, #ff4444); 
+        }
+        .layer-icon.regulatory { 
+            background: linear-gradient(135deg, #ff4444, #cc0000); 
+        }
+        .layer-icon.ai { 
+            background: linear-gradient(135deg, var(--accent-purple), #6366f1); 
+        }
+
+        .layer-details h4 {
+            font-size: 17px;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        .layer-details p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        /* Advanced toggle switch */
+        .toggle-switch {
+            position: relative;
+            width: 56px;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid var(--border-color);
+        }
+
+        .toggle-switch.active {
+            background: linear-gradient(135deg, var(--primary-green), var(--primary-dark));
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .toggle-knob {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 26px;
+            height: 26px;
+            background: #fff;
+            border-radius: 50%;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .toggle-switch.active .toggle-knob {
+            transform: translateX(24px);
+            background: #000;
+        }
+
+        /* Enhanced search functionality */
+        .search-container {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 18px 60px 18px 24px;
+            background: var(--glass-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            color: var(--text-primary);
+            font-size: 16px;
+            font-weight: 400;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
+        }
+
+        .search-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            font-size: 18px;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus + .search-icon {
+            color: var(--primary-green);
+        }
+
+        /* Advanced filter buttons */
+        .search-filters {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+        }
+
+        .filter-btn {
+            padding: 12px 20px;
+            background: var(--glass-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+        }
+
+        .filter-btn.active {
+            background: linear-gradient(135deg, var(--primary-green), var(--primary-dark));
+            color: #000;
+            border-color: var(--primary-green);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+        }
+
+        /* Enhanced location sections */
+        .location-section {
+            margin-bottom: 32px;
+        }
+
+        .location-section h4 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary-green), var(--secondary-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .location-btn {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background: var(--glass-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+        }
+
+        .location-btn:hover {
+            background: rgba(0, 255, 136, 0.1);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 32px rgba(0, 255, 136, 0.2);
+        }
+
+        .location-icon {
+            font-size: 28px;
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary-green), var(--primary-dark));
+            color: #000;
+        }
+
+        /* Enhanced sliders */
+        .slider-group {
+            margin-bottom: 28px;
+            padding: 20px;
+            background: var(--glass-bg);
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(10px);
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .slider-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .slider-value {
+            font-size: 16px;
+            color: var(--primary-green);
+            font-weight: 700;
+            padding: 4px 12px;
+            background: rgba(0, 255, 136, 0.1);
+            border-radius: 8px;
+        }
+
+        .slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+            -webkit-appearance: none;
+            position: relative;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-green), var(--primary-dark));
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.4);
+            border: 3px solid #fff;
+        }
+
+        /* Enhanced analyze button */
+        .analyze-btn {
+            width: 100%;
+            padding: 20px;
+            background: linear-gradient(135deg, var(--primary-green) 0%, var(--secondary-blue) 100%);
+            color: #000;
+            border: none;
+            border-radius: 16px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-bottom: 24px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .analyze-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s;
+        }
+
+        .analyze-btn:hover::before {
+            left: 100%;
+        }
+
+        .analyze-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Enhanced result cards */
+        .result-card {
+            background: var(--glass-bg);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .result-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: linear-gradient(135deg, var(--primary-green), var(--secondary-blue));
+        }
+
+        .result-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 255, 136, 0.2);
+        }
+
+        /* Loading animations */
+        .loading-spinner {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(0, 0, 0, 0.3);
+            border-radius: 50%;
+            border-top-color: #000;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 12px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* AI Analysis Panel */
+        .ai-panel {
+            background: linear-gradient(135deg, var(--accent-purple), #6366f1);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 24px;
+            color: #fff;
+        }
+
+        .ai-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .ai-insight {
+            font-size: 14px;
+            line-height: 1.6;
+            opacity: 0.9;
+        }
+
+        /* Responsive design */
+        @media (max-height: 700px) {
+            .bottom-sheet {
+                transform: translateY(calc(100% - 80px));
+            }
+            
+            .sheet-content {
+                max-height: calc(90vh - 120px);
+            }
+        }
+
+        @media (max-width: 380px) {
+            .status-bar {
+                padding: 0 16px;
+            }
+            
+            .hud-overlay {
+                left: 16px;
+                right: 16px;
+            }
+            
+            .fab-container {
+                right: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="status-bar">
+            <div class="status-left">
+                <span class="app-logo">⚡</span>
+                <span>HydroGen Pro</span>
+            </div>
+            <div class="status-right">
+                <div class="signal-bars">
+                    <div class="signal-bar"></div>
+                    <div class="signal-bar"></div>
+                    <div class="signal-bar"></div>
+                    <div class="signal-bar"></div>
+                </div>
+                <span>🔋 95%</span>
+                <span id="currentTime">12:34</span>
+            </div>
+        </div>
+
+        <div class="map-wrapper">
+            <div id="map"></div>
+            
+            <div class="map-corners">
+                <div class="corner top-left"></div>
+                <div class="corner top-right"></div>
+                <div class="corner bottom-left"></div>
+                <div class="corner bottom-right"></div>
+            </div>
+            
+            <div class="hud-overlay">
+                <div class="hud-panel">
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-value" id="activeProjects"></span>
+                            <span class="stat-label">Active Projects</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="totalCapacity"></span>
+                            <span class="stat-label">Total Capacity</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="efficiency"></span>
+                            <span class="stat-label">Efficiency</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="costReduction"></span>
+                            <span class="stat-label">Cost Reduction</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="fab-container">
+                <button class="fab pulse" id="aiAnalyzeBtn" title="AI Analysis">
+                    <i class="fas fa-brain"></i>
+                </button>
+                <button class="fab secondary" id="locationBtn" title="My Location">
+                    <i class="fas fa-location-crosshairs"></i>
+                </button>
+                <button class="fab secondary" id="layersBtn" title="Layers">
+                    <i class="fas fa-layer-group"></i>
+                </button>
+                <button class="fab secondary" id="settingsBtn" title="Settings">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="bottom-sheet" id="bottomSheet">
+            <div class="sheet-handle" id="sheetHandle"></div>
+            <div class="sheet-header">
+                <div class="sheet-title">Advanced Control Center</div>
+                <div class="sheet-subtitle">AI-powered hydrogen infrastructure management</div>
+            </div>
+            
+            <div class="sheet-content">
+                <div class="tab-nav">
+                    <button class="tab-btn active" data-tab="layers">
+                        <i class="fas fa-layer-group"></i> Layers
+                    </button>
+                    <button class="tab-btn" data-tab="search">
+                        <i class="fas fa-search"></i> Search
+                    </button>
+                    <button class="tab-btn" data-tab="ai">
+                        <i class="fas fa-brain"></i> AI
+                    </button>
+                    <button class="tab-btn" data-tab="results">
+                        <i class="fas fa-chart-line"></i> Results
+                    </button>
+                </div>
+
+                <div class="tab-content active" id="layers-tab">
+                    <div class="layer-toggle">
+                        <div class="layer-info">
+                            <div class="layer-icon infrastructure">
+                                <i class="fas fa-industry"></i>
+                            </div>
+                            <div class="layer-details">
+                                <h4>Infrastructure Network</h4>
+                                <p>Production plants, storage facilities, and distribution pipelines</p>
+                            </div>
+                        </div>
+                        <div class="toggle-switch active" data-layer="infrastructure">
+                            <div class="toggle-knob"></div>
+                        </div>
+                    </div>
+
+                    <div class="layer-toggle">
+                        <div class="layer-info">
+                            <div class="layer-icon renewables">
+                                <i class="fas fa-solar-panel"></i>
+                            </div>
+                            <div class="layer-details">
+                                <h4>Renewable Energy</h4>
+                                <p>Solar irradiance, wind patterns, and green energy potential</p>
+                            </div>
+                        </div>
+                        <div class="toggle-switch active" data-layer="renewables">
+                            <div class="toggle-knob"></div>
+                        </div>
+                    </div>
+
+                    <div class="layer-toggle">
+                        <div class="layer-info">
+                            <div class="layer-icon demand">
+                                <i class="fas fa-building"></i>
+                            </div>
+                            <div class="layer-details">
+                                <h4>Demand Centers</h4>
+                                <p>Industrial hubs, transport corridors, and consumption zones</p>
+                            </div>
+                        </div>
+                        <div class="toggle-switch active" data-layer="demand">
+                            <div class="toggle-knob"></div>
+                        </div>
+                    </div>
+
+                    <div class="layer-toggle">
+                        <div class="layer-info">
+                            <div class="layer-icon regulatory">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <div class="layer-details">
+                                <h4>Regulatory Zones</h4>
+                                <p>Protected areas, restrictions, and compliance boundaries</p>
+                            </div>
+                        </div>
+                        <div class="toggle-switch active" data-layer="regulatory">
+                            <div class="toggle-knob"></div>
+                        </div>
+                    </div>
+
+                    <div class="layer-toggle">
+                        <div class="layer-info">
+                            <div class="layer-icon ai">
+                                <i class="fas fa-brain"></i>
+                            </div>
+                            <div class="layer-details">
+                                <h4>AI Recommendations</h4>
+                                <p>Machine learning predictions and optimal site suggestions</p>
+                            </div>
+                        </div>
+                        <div class="toggle-switch" data-layer="ai">
+                            <div class="toggle-knob"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="search-tab">
+                    <div class="search-container">
+                        <input type="text" class="search-input" placeholder="Search locations, coordinates, or infrastructure..." id="searchInput">
+                        <i class="fas fa-search search-icon"></i>
+                    </div>
+                    
+                    <div class="search-filters">
+                        <button class="filter-btn active" data-filter="all">
+                            <i class="fas fa-globe"></i> All
+                        </button>
+                        <button class="filter-btn" data-filter="cities">
+                            <i class="fas fa-city"></i> Cities
+                        </button>
+                        <button class="filter-btn" data-filter="infrastructure">
+                            <i class="fas fa-industry"></i> Infrastructure
+                        </button>
+                        <button class="filter-btn" data-filter="coordinates">
+                            <i class="fas fa-map-pin"></i> Coordinates
+                        </button>
+                    </div>
+
+                    <div class="location-section">
+                        <h4><i class="fas fa-location-arrow"></i> Current Location</h4>
+                        <button class="location-btn" id="getCurrentLocation">
+                            <div class="location-icon">
+                                <i class="fas fa-crosshairs"></i>
+                            </div>
+                            <div class="location-info">
+                                <div class="location-title">Use My Location</div>
+                                <div class="location-subtitle">Find optimal sites near your position</div>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="location-section">
+                        <h4><i class="fas fa-history"></i> Recent Searches</h4>
+                        <div id="recentSearches">
+                            </div>
+                    </div>
+
+                    <div class="location-section">
+                        <h4><i class="fas fa-star"></i> Strategic H2 Hubs</h4>
+                        <div id="strategicHubs">
+                            </div>
+                    </div>
+
+                    <div id="searchResults"></div>
+                </div>
+
+                <div class="tab-content" id="ai-tab">
+                    <div class="ai-panel">
+                        <div class="ai-title">
+                            <i class="fas fa-brain"></i>
+                            AI Market Intelligence
+                        </div>
+                        <div class="ai-insight">
+                            Advanced machine learning algorithms analyze 50+ data sources including renewable energy patterns, industrial demand, regulatory frameworks, and economic indicators to identify optimal hydrogen infrastructure opportunities.
+                        </div>
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span class="slider-title">
+                                <i class="fas fa-leaf"></i> Renewable Energy Weight
+                            </span>
+                            <span class="slider-value" id="renewableValue">75%</span>
+                        </div>
+                        <input type="range" class="slider" id="renewableSlider" min="0" max="100" value="75">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span class="slider-title">
+                                <i class="fas fa-industry"></i> Demand Proximity
+                            </span>
+                            <span class="slider-value" id="demandValue">85%</span>
+                        </div>
+                        <input type="range" class="slider" id="demandSlider" min="0" max="100" value="85">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span class="slider-title">
+                                <i class="fas fa-dollar-sign"></i> Cost Optimization
+                            </span>
+                            <span class="slider-value" id="costValue">$4.80</span>
+                        </div>
+                        <input type="range" class="slider" id="costSlider" min="2" max="8" value="4.8" step="0.1">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span class="slider-title">
+                                <i class="fas fa-shield-alt"></i> Risk Tolerance
+                            </span>
+                            <span class="slider-value" id="riskValue">Medium</span>
+                        </div>
+                        <input type="range" class="slider" id="riskSlider" min="1" max="5" value="3">
+                    </div>
+
+                    <button class="analyze-btn" id="runAIAnalysis">
+                        <i class="fas fa-brain"></i> Run AI Analysis
+                    </button>
+                </div>
+
+                <div class="tab-content" id="results-tab">
+                    <div id="analysisResults">
+                        <div style="text-align: center; padding: 60px 20px;">
+                            <i class="fas fa-chart-line" style="font-size: 48px; color: var(--primary-green); margin-bottom: 20px;"></i>
+                            <h3 style="margin-bottom: 12px;">AI Analysis Ready</h3>
+                            <p style="color: var(--text-secondary); line-height: 1.6;">
+                                Run the AI analysis to discover optimal hydrogen infrastructure sites based on your criteria and market intelligence.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+    <script>
+        // Enhanced time and stats updates
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = 
+                now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+
+        updateTime();
+        setInterval(updateTime, 60000);
+
+        let appData = {}; // Global variable to store all backend data
+
+        // Function to fetch initial data and populate the page
+        async function fetchInitialData() {
+            try {
+                const response = await fetch('/api/initial-data');
+                appData = await response.json();
+                
+                // Populate stats
+                document.getElementById('activeProjects').textContent = appData.stats.activeProjects;
+                document.getElementById('totalCapacity').textContent = appData.stats.totalCapacity;
+                document.getElementById('efficiency').textContent = appData.stats.efficiency;
+                document.getElementById('costReduction').textContent = appData.stats.costReduction;
+                
+                // Populate layers and other sections
+                populateInfrastructure();
+                populateRenewables();
+                populateDemandCenters();
+                populateRegulatoryZones();
+                
+                // Populate search tabs
+                populateSearchSections();
+
+            } catch (error) {
+                console.error('Failed to fetch initial data:', error);
+            }
+        }
+
+        // Call the function to fetch data on page load
+        fetchInitialData();
+
+        // Initialize enhanced map
+        const map = L.map('map', {
+            center: [39.8283, -98.5795],
+            zoom: 4,
+            zoomControl: true,
+            attributionControl: false,
+            tap: true,
+            touchZoom: true,
+            doubleClickZoom: false,
+            preferCanvas: true
+        });
+
+        // Enhanced dark theme with custom styling
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Layer groups
+        const layers = {
+            infrastructure: L.layerGroup(),
+            renewables: L.layerGroup(),
+            demand: L.layerGroup(),
+            regulatory: L.layerGroup(),
+            ai: L.layerGroup()
+        };
+
+        // Add layers to map
+        Object.values(layers).forEach(layer => layer.addTo(map));
+
+        // Enhanced icons with status indicators
+        const icons = {
+            production: (status) => L.divIcon({
+                html: `<div style="background: linear-gradient(135deg, #00ff88, #00cc6a); border: 3px solid #fff; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: black; font-weight: bold; box-shadow: 0 4px 20px rgba(0,255,136,0.6); position: relative;">
+                    <i class="fas fa-industry" style="font-size: 14px;"></i>
+                    <div style="position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: ${status === 'operational' ? '#00ff00' : status === 'construction' ? '#ffaa00' : '#ff4444'};"></div>
+                </div>`,
+                iconSize: [32, 32],
+                className: 'custom-div-icon'
+            }),
+            storage: (status) => L.divIcon({
+                html: `<div style="background: linear-gradient(135deg, #00cc6a, #00aa55); border: 3px solid #fff; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 4px 16px rgba(0,204,106,0.6); position: relative;">
+                    <i class="fas fa-warehouse" style="font-size: 12px;"></i>
+                    <div style="position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: ${status === 'operational' ? '#00ff00' : status === 'construction' ? '#ffaa00' : '#ff4444'};"></div>
+                </div>`,
+                iconSize: [28, 28],
+                className: 'custom-div-icon'
+            }),
+            pipeline: (status) => L.divIcon({
+                html: `<div style="background: linear-gradient(135deg, #00aa55, #008844); border: 3px solid #fff; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 4px 12px rgba(0,170,85,0.6); position: relative;">
+                    <i class="fas fa-route" style="font-size: 10px;"></i>
+                    <div style="position: absolute; top: -2px; right: -2px; width: 6px; height: 6px; border-radius: 50%; background: ${status === 'operational' ? '#00ff00' : status === 'construction' ? '#ffaa00' : '#ff4444'};"></div>
+                </div>`,
+                iconSize: [24, 24],
+                className: 'custom-div-icon'
+            }),
+            demand: L.divIcon({
+                html: '<div style="background: linear-gradient(135deg, #ff6b35, #ff4444); border: 3px solid #fff; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; box-shadow: 0 4px 24px rgba(255,107,53,0.6);"><i class="fas fa-building" style="font-size: 16px;"></i></div>',
+                iconSize: [36, 36],
+                className: 'custom-div-icon'
+            }),
+            ai: L.divIcon({
+                html: '<div class="recommended-marker" style="background: linear-gradient(135deg, #8b5cf6, #6366f1); border: 4px solid #fff; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; box-shadow: 0 0 30px #8b5cf6;"><i class="fas fa-brain" style="font-size: 18px;"></i></div>',
+                iconSize: [44, 44],
+                className: 'custom-div-icon'
+            })
+        };
+
+        // Enhanced data population functions
+        function populateInfrastructure() {
+            layers.infrastructure.clearLayers();
+            appData.layers.infrastructure.forEach(item => {
+                const marker = L.marker([item.lat, item.lng], { 
+                    icon: icons[item.type](item.status) 
+                }).bindPopup(`
+                    <div style="color: black; min-width: 250px; font-family: Inter, sans-serif;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <strong style="font-size: 16px;">${item.name}</strong>
+                            <span style="background: ${item.status === 'operational' ? '#00ff00' : item.status === 'construction' ? '#ffaa00' : '#ff4444'}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; text-transform: uppercase;">${item.status}</span>
+                        </div>
+                        <div style="margin-bottom: 4px;"><strong>Type:</strong> ${item.type}</div>
+                        ${item.capacity ? `<div style="margin-bottom: 4px;"><strong>Capacity:</strong> ${item.capacity}</div>` : ''}
+                        ${item.length ? `<div style="margin-bottom: 4px;"><strong>Length:</strong> ${item.length}</div>` : ''}
+                        <div style="font-size: 12px; color: #666; margin-top: 8px;">Click to view detailed analytics</div>
+                    </div>
+                `);
+                layers.infrastructure.addLayer(marker);
+            });
+        }
+
+        function populateRenewables() {
+            layers.renewables.clearLayers();
+            
+            const solarHeat = L.heatLayer(appData.layers.renewables.solar, {
+                radius: 50,
+                blur: 25,
+                maxZoom: 12,
+                gradient: {0.2: '#ffeb3b', 0.4: '#ff9800', 0.6: '#ff5722', 1.0: '#d32f2f'}
+            });
+            layers.renewables.addLayer(solarHeat);
+
+            const windHeat = L.heatLayer(appData.layers.renewables.wind, {
+                radius: 45,
+                blur: 20,
+                maxZoom: 12,
+                gradient: {0.2: '#e3f2fd', 0.4: '#2196f3', 0.6: '#1976d2', 1.0: '#0d47a1'}
+            });
+            layers.renewables.addLayer(windHeat);
+        }
+
+        function populateDemandCenters() {
+            layers.demand.clearLayers();
+            appData.layers.demandCenters.forEach(center => {
+                const size = Math.max(24, center.demand / 2.5);
+                const customIcon = L.divIcon({
+                    html: `<div style="background: linear-gradient(135deg, #ff6b35, #ff4444); border: 3px solid #fff; border-radius: 50%; width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; box-shadow: 0 4px 20px rgba(255,107,53,0.6);"><i class="fas fa-building" style="font-size: ${size/3}px;"></i></div>`,
+                    iconSize: [size, size],
+                    className: 'custom-div-icon'
+                });
+                
+                const marker = L.marker([center.lat, center.lng], { icon: customIcon })
+                    .bindPopup(`
+                        <div style="color: black; min-width: 220px; font-family: Inter, sans-serif;">
+                            <strong style="font-size: 16px; display: block; margin-bottom: 8px;">${center.name}</strong>
+                            <div style="margin-bottom: 4px;"><strong>Type:</strong> ${center.type}</div>
+                            <div style="margin-bottom: 8px;"><strong>Demand Level:</strong> ${center.demand}%</div>
+                            <div style="background: #f5f5f5; padding: 8px; border-radius: 4px; font-size: 12px;">
+                                High-priority hydrogen consumption zone
+                            </div>
+                        </div>
+                    `);
+                layers.demand.addLayer(marker);
+            });
+        }
+
+        function populateRegulatoryZones() {
+            layers.regulatory.clearLayers();
+            appData.layers.regulatoryZones.forEach(zone => {
+                const polygon = L.rectangle(zone.bounds, {
+                    color: '#ff4444',
+                    weight: 3,
+                    fillColor: '#ff4444',
+                    fillOpacity: 0.15,
+                    dashArray: '10, 10'
+                }).bindPopup(`
+                    <div style="color: black; font-family: Inter, sans-serif;">
+                        <strong style="font-size: 16px; display: block; margin-bottom: 8px;">${zone.name}</strong>
+                        <div style="color: #d32f2f; font-weight: 600;">⚠️ Restricted Area</div>
+                        <div style="font-size: 12px; margin-top: 8px; color: #666;">
+                            Development limitations may apply
+                        </div>
+                    </div>
+                `);
+                layers.regulatory.addLayer(polygon);
+            });
+        }
+
+        // --- NEW: Populate Search Sections from Backend Data ---
+        function populateSearchSections() {
+            const recentSearchesDiv = document.getElementById('recentSearches');
+            const strategicHubsDiv = document.getElementById('strategicHubs');
+
+            if (appData.search && appData.search.recent) {
+                recentSearchesDiv.innerHTML = appData.search.recent.map(item => `
+                    <div class="recent-item" data-lat="${item.lat}" data-lng="${item.lng}">
+                        <span class="recent-icon">${item.icon}</span>
+                        <div class="recent-info">
+                            <div class="recent-title">${item.name}</div>
+                            <div class="recent-subtitle">${item.subtitle}</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            if (appData.search && appData.search.strategicHubs) {
+                strategicHubsDiv.innerHTML = appData.search.strategicHubs.map(item => `
+                    <div class="popular-item" data-lat="${item.lat}" data-lng="${item.lng}">
+                        <span class="popular-icon">${item.icon}</span>
+                        <div class="popular-info">
+                            <div class="popular-title">${item.name}</div>
+                            <div class="popular-subtitle">${item.subtitle}</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            // Re-attach event listeners for newly created elements
+            attachSearchListeners();
+        }
+        
+        function attachSearchListeners() {
+            document.querySelectorAll('.recent-item, .popular-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const lat = parseFloat(this.dataset.lat);
+                    const lng = parseFloat(this.dataset.lng);
+                    const name = this.querySelector('.recent-title, .popular-title').textContent;
+                    goToLocation(lat, lng, name);
+                });
+            });
+        }
+        // --- END NEW SEARCH SECTIONS ---
+
+
+        // Enhanced bottom sheet functionality
+        const bottomSheet = document.getElementById('bottomSheet');
+        const sheetHandle = document.getElementById('sheetHandle');
+        let isExpanded = false;
+
+        function toggleSheet() {
+            isExpanded = !isExpanded;
+            bottomSheet.classList.toggle('expanded', isExpanded);
+        }
+
+        sheetHandle.addEventListener('click', toggleSheet);
+
+        // Enhanced tab functionality
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetTab = btn.dataset.tab;
+                
+                tabBtns.forEach(b => b.classList.remove('active'));
+                tabContents.forEach(c => c.classList.remove('active'));
+                
+                btn.classList.add('active');
+                document.getElementById(targetTab + '-tab').classList.add('active');
+            });
+        });
+
+        // Enhanced layer toggle functionality
+        const toggleSwitches = document.querySelectorAll('.toggle-switch');
+        toggleSwitches.forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                const layerName = toggle.dataset.layer;
+                const isActive = toggle.classList.contains('active');
+                
+                toggle.classList.toggle('active');
+                
+                if (isActive) {
+                    map.removeLayer(layers[layerName]);
+                } else {
+                    layers[layerName].addTo(map);
+                }
+            });
+        });
+
+        // Enhanced slider functionality
+        const sliders = {
+            renewable: document.getElementById('renewableSlider'),
+            demand: document.getElementById('demandSlider'),
+            cost: document.getElementById('costSlider'),
+            risk: document.getElementById('riskSlider')
+        };
+
+        const values = {
+            renewable: document.getElementById('renewableValue'),
+            demand: document.getElementById('demandValue'),
+            cost: document.getElementById('costValue'),
+            risk: document.getElementById('riskValue')
+        };
+
+        sliders.renewable.addEventListener('input', function() {
+            values.renewable.textContent = this.value + '%';
+        });
+
+        sliders.demand.addEventListener('input', function() {
+            values.demand.textContent = this.value + '%';
+        });
+
+        sliders.cost.addEventListener('input', function() {
+            values.cost.textContent = '$' + this.value;
+        });
+
+        sliders.risk.addEventListener('input', function() {
+            const riskLevels = ['Very Low', 'Low', 'Medium', 'High', 'Very High'];
+            values.risk.textContent = riskLevels[this.value - 1];
+        });
+
+        // Enhanced FAB functionality
+        document.getElementById('aiAnalyzeBtn').addEventListener('click', () => {
+            document.querySelector('[data-tab="ai"]').click();
+            if (!isExpanded) toggleSheet();
+        });
+
+        document.getElementById('locationBtn').addEventListener('click', () => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    map.setView([position.coords.latitude, position.coords.longitude], 12);
+                    
+                    // Add temporary location marker
+                    const locationMarker = L.marker([position.coords.latitude, position.coords.longitude], {
+                        icon: L.divIcon({
+                            html: '<div style="background: #00ff88; border: 4px solid #fff; border-radius: 50%; width: 20px; height: 20px; box-shadow: 0 0 20px #00ff88; animation: pulse 2s infinite;"></div>',
+                            iconSize: [20, 20]
+                        })
+                    }).addTo(map);
+                    
+                    setTimeout(() => map.removeLayer(locationMarker), 5000);
+                });
+            }
+        });
+
+        document.getElementById('layersBtn').addEventListener('click', () => {
+            document.querySelector('[data-tab="layers"]').click();
+            if (!isExpanded) toggleSheet();
+        });
+
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            // Settings functionality could be added here
+            alert('Settings panel coming soon!');
+        });
+
+        // --- NEW: AI Analysis Function using Backend API ---
+        document.getElementById('runAIAnalysis').addEventListener('click', function() {
+            this.innerHTML = '<span class="loading-spinner"></span><i class="fas fa-brain"></i> Analyzing...';
+            this.disabled = true;
+
+            layers.ai.clearLayers();
+
+            const mapCenter = map.getCenter();
+
+            const analysisParams = {
+                lat: mapCenter.lat,
+                lng: mapCenter.lng,
+                renewableWeight: sliders.renewable.value,
+                demandWeight: sliders.demand.value,
+                costThreshold: sliders.cost.value,
+                riskLevel: sliders.risk.value
+            };
+
+            fetch('/api/run-analysis', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(analysisParams),
+            })
+            .then(response => response.json())
+            .then(data => {
+                const aiRecommendations = data.recommendations;
+                
+                aiRecommendations.forEach(site => {
+                    const marker = L.marker([site.lat, site.lng], { icon: icons.ai })
+                        .bindPopup(`
+                            <div style="color: black; min-width: 300px; font-family: Inter, sans-serif;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                                    <i class="fas fa-brain" style="color: #8b5cf6;"></i>
+                                    <strong style="font-size: 18px;">${site.name}</strong>
+                                </div>
+                                <p style="margin-bottom: 12px; line-height: 1.4; font-size: 14px;">${site.description}</p>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #f8f9fa; padding: 12px; border-radius: 8px;">
+                                    <div><strong>Capacity:</strong> ${site.metrics.capacity}</div>
+                                    <div><strong>Distance:</strong> ${site.metrics.proximity}</div>
+                                    <div><strong>Investment:</strong> ${site.metrics.investment}</div>
+                                    <div><strong>AI Score:</strong> ${site.metrics.score}</div>
+                                    <div><strong>ROI:</strong> ${site.metrics.roi}</div>
+                                    <div><strong>Risk:</strong> ${site.metrics.risk}</div>
+                                </div>
+                            </div>
+                        `);
+                    layers.ai.addLayer(marker);
+                });
+
+                document.getElementById('analysisResults').innerHTML = aiRecommendations.map((site, index) => `
+                    <div class="result-card" onclick="map.setView([${site.lat}, ${site.lng}], 10); toggleSheet();">
+                        <div class="result-header">
+                            <div class="result-title">
+                                <i class="fas fa-brain" style="color: #8b5cf6; margin-right: 8px;"></i>
+                                ${site.name}
+                            </div>
+                            <div class="result-rank" style="background: linear-gradient(135deg, #8b5cf6, #6366f1);">#${index + 1}</div>
+                        </div>
+                        <div class="result-description" style="margin-bottom: 16px;">${site.description}</div>
+                        <div class="result-metrics" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                            <div class="metric-item">
+                                <div class="metric-label">Capacity</div>
+                                <div class="metric-value">${site.metrics.capacity}</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-label">Investment</div>
+                                <div class="metric-value">${site.metrics.investment}</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-label">AI Score</div>
+                                <div class="metric-value">${site.metrics.score}</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-label">ROI</div>
+                                <div class="metric-value">${site.metrics.roi}</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-label">Risk Level</div>
+                                <div class="metric-value">${site.metrics.risk}</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-label">Distance</div>
+                                <div class="metric-value">${site.metrics.proximity}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                document.querySelector('[data-tab="results"]').click();
+                this.innerHTML = '<i class="fas fa-brain"></i> Run AI Analysis';
+                this.disabled = false;
+
+                if (aiRecommendations.length > 0) {
+                    const group = new L.featureGroup(layers.ai.getLayers());
+                    map.fitBounds(group.getBounds().pad(0.1));
+                }
+
+                document.querySelector('[data-layer="ai"]').classList.add('active');
+            })
+            .catch(error => {
+                console.error('Error during analysis:', error);
+                alert('An error occurred during analysis. Please try again.');
+                this.innerHTML = '<i class="fas fa-brain"></i> Run AI Analysis';
+                this.disabled = false;
+            });
+        });
+        // --- END NEW AI ANALYSIS FUNCTION ---
+
+        // --- NEW: Search Functionality with Backend API ---
+        document.getElementById('searchInput').addEventListener('input', function() {
+            const query = this.value;
+            const resultsDiv = document.getElementById('searchResults');
+            
+            if (query.length > 1) {
+                fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query })
+                })
+                .then(response => response.json())
+                .then(results => {
+                    resultsDiv.innerHTML = results.map(result => `
+                        <div class="result-card" onclick="goToLocation(${result.lat}, ${result.lng}, '${result.name}')">
+                            <div class="result-header">
+                                <div class="result-title">${result.icon} ${result.name}</div>
+                            </div>
+                            <div class="result-description">${result.subtitle}</div>
+                        </div>
+                    `).join('');
+                })
+                .catch(error => {
+                    console.error('Search failed:', error);
+                    resultsDiv.innerHTML = '<div style="padding: 20px; text-align: center;">Search failed. Please try again.</div>';
+                });
+            } else {
+                resultsDiv.innerHTML = '';
+            }
+        });
+        // --- END NEW SEARCH FUNCTIONALITY ---
+
+
+        // Enhanced filter functionality
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentFilter = this.dataset.filter;
+                
+                document.getElementById('searchInput').dispatchEvent(new Event('input'));
+            });
+        });
+
+        // Enhanced location functionality
+        document.getElementById('getCurrentLocation').addEventListener('click', function() {
+            const btn = this;
+            const originalContent = btn.innerHTML;
+            
+            btn.innerHTML = `
+                <div class="location-icon">
+                    <span class="loading-spinner"></span>
+                </div>
+                <div class="location-info">
+                    <div class="location-title">Getting Location...</div>
+                    <div class="location-subtitle">Please wait</div>
+                </div>
+            `;
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        goToLocation(lat, lng, 'Your Location');
+                        btn.innerHTML = originalContent;
+                    },
+                    error => {
+                        goToLocation(37.7749, -122.4194, 'Default Location (San Francisco)');
+                        btn.innerHTML = originalContent;
+                    }
+                );
+            } else {
+                goToLocation(37.7749, -122.4194, 'Default Location (San Francisco)');
+                btn.innerHTML = originalContent;
+            }
+        });
+
+        // Enhanced goToLocation function
+        function goToLocation(lat, lng, name) {
+            map.setView([lat, lng], 12);
+            
+            // Add enhanced temporary marker
+            const tempMarker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    html: '<div style="background: linear-gradient(135deg, #00ff88, #00cc6a); border: 4px solid #fff; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: black; font-weight: bold; box-shadow: 0 0 30px #00ff88; animation: pulse 2s infinite;"><i class="fas fa-map-pin" style="font-size: 18px;"></i></div>',
+                    iconSize: [40, 40],
+                    className: 'temp-marker'
+                })
+            }).addTo(map);
+            
+            tempMarker.bindPopup(`
+                <div style="color: black; text-align: center; font-family: Inter, sans-serif;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
+                        <i class="fas fa-map-pin" style="color: #00ff88;"></i>
+                        <strong>${name}</strong>
+                    </div>
+                    <div style="font-size: 12px; color: #666;">
+                        Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}
+                    </div>
+                    <div style="margin-top: 8px; padding: 6px; background: #f0f8ff; border-radius: 4px; font-size: 11px;">
+                        Location marked for analysis
+                    </div>
+                </div>
+            `).openPopup();
+            
+            // Remove temporary marker after 15 seconds
+            setTimeout(() => {
+                map.removeLayer(tempMarker);
+            }, 15000);
+            
+            // Close bottom sheet
+            if (isExpanded) toggleSheet();
+        }
+
+        // Enhanced map interactions
+        map.on('dblclick', function(e) {
+            e.preventDefault();
+        });
+
+        // Handle orientation change
+        window.addEventListener('orientationchange', function() {
+            setTimeout(() => map.invalidateSize(), 500);
+        });
+
+        // Initialize map size
+        setTimeout(() => map.invalidateSize(), 100);
+
+        // Add some visual enhancements
+        const style = document.createElement('style');
+        style.textContent = `
+            .leaflet-control-zoom {
+                border: none !important;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+            }
+            
+            .leaflet-control-zoom a {
+                background: rgba(0, 0, 0, 0.7) !important;
+                backdrop-filter: blur(20px) !important;
+                color: #fff !important;
+                border: 1px solid rgba(255, 255, 255, 0.15) !important;
+                width: 44px !important;
+                height: 44px !important;
+                line-height: 44px !important;
+                font-size: 18px !important;
+                border-radius: 12px !important;
+            }
+            
+            .leaflet-control-zoom a:hover {
+                background: linear-gradient(135deg, #00ff88, #00cc6a) !important;
+                color: #000 !important;
+            }
+            
+            .leaflet-control-attribution {
+                display: none !important;
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9771c3ad03130333',t:'MTc1NjUzMDQ0NC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
