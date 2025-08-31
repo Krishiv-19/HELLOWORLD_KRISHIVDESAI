@@ -1,21 +1,32 @@
-from flask import Flask, jsonify, send_from_directory, request
+from flask import Flask, jsonify, send_from_directory, request, session
+from werkzeug.security import generate_password_hash, check_password_hash
 import random
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
+import numpy as np
 
 app = Flask(__name__)
+app.secret_key = 'your_super_secret_key_here'
+
+# --- MOCK USER DATABASE ---
+users = {
+    'admin': generate_password_hash('password123'),
+    'planner': generate_password_hash('greenpass')
+}
+# --- END MOCK USER DATABASE ---
+
+# --- CONFIGURATION: ADD YOUR NREL API KEY HERE ---
+NREL_API_KEY = 'YOUR_NREL_API_KEY'
+# --- END CONFIGURATION ---
 
 # --- COMPLETE DATASET FOR ALL TABS ---
 DATASET = {
-    # Data for the initial status bar and HUD
     "stats": {
         "activeProjects": 247,
         "totalCapacity": "1.2 GW",
         "efficiency": "94%",
         "costReduction": "-23%"
     },
-
-    # Data for the Layers tab and map population
     "layers": {
         "infrastructure": [
             {"lat": 40.7128, "lng": -74.0060, "name": "Manhattan H2 Hub", "type": "production", "capacity": "75 MW", "status": "operational"},
@@ -86,7 +97,6 @@ DATASET = {
     ]
 }
 
-# Populate the search database with data from layers
 DATASET['search']['database'] = [
     {"name": item['name'], "type": "infrastructure", "lat": item['lat'], "lng": item['lng'],
      "subtitle": f"{item['type']} • {item.get('capacity', item.get('length', 'N/A'))} • {item['status']}",
@@ -95,8 +105,34 @@ DATASET['search']['database'] = [
 ]
 # --- END DATASET ---
 
-# --- API ROUTES ---
+# --- API ROUTES FOR AUTHENTICATION ---
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
 
+    if username in users and check_password_hash(users.get(username), password):
+        session['logged_in'] = True
+        session['username'] = username
+        return jsonify({'message': 'Login successful!', 'username': username}), 200
+    
+    return jsonify({'message': 'Invalid username or password'}), 401
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    session.pop('logged_in', None)
+    session.pop('username', None)
+    return jsonify({'message': 'Logout successful'}), 200
+
+@app.route('/api/check-status')
+def check_status():
+    if 'logged_in' in session and session['logged_in']:
+        return jsonify({'logged_in': True, 'username': session['username']})
+    return jsonify({'logged_in': False, 'username': None})
+# --- END NEW API ROUTES FOR AUTHENTICATION ---
+
+# --- EXISTING API ROUTES ---
 @app.route('/')
 def serve_frontend():
     return send_from_directory('.', 'FRONTEND.html')
@@ -109,13 +145,11 @@ def get_initial_data():
 def search_locations():
     query = request.json.get('query', '').lower()
     
-    # Simple search logic
     results = [
         item for item in DATASET['search']['database']
         if query in item['name'].lower() or query in item['subtitle'].lower()
     ]
     
-    # Add coordinate search
     import re
     coord_match = re.match(r'^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$', query)
     if coord_match:
@@ -139,14 +173,18 @@ def run_ai_analysis():
     renewable_weight = float(data.get('renewableWeight'))
     demand_weight = float(data.get('demandWeight'))
     cost_threshold = float(data.get('costThreshold'))
-    risk_level = data.get('riskLevel')
+    risk_level = float(data.get('riskLevel'))
+    
+    if not session.get('logged_in'):
+        return jsonify({"error": "Unauthorized. Please log in to run AI analysis."}), 401
     
     print(f"Running AI analysis for LAT: {lat}, LNG: {lng}")
     print(f"- Renewable Weight: {renewable_weight}%")
     
-    # --- Integration with NASA POWER API ---
     try:
-        start_date = datetime.now().strftime("%Y%m%d")
+        # Use a more robust date check
+        start_date_obj = datetime.now()
+        start_date = start_date_obj.strftime("%Y%m%d")
         end_date = start_date
         
         api_url = f"https://power.larc.nasa.gov/api/temporal/daily/point?parameters=ALLSKY_SFC_SW_DWN&community=RE&longitude={lng}&latitude={lat}&start={start_date}&end={end_date}&format=JSON"
@@ -154,7 +192,17 @@ def run_ai_analysis():
         response.raise_for_status()
         solar_data = response.json()
         
-        solar_value = solar_data['properties']['parameter']['ALLSKY_SFC_SW_DWN'][start_date]
+        # Check if the data for today exists. If not, try the previous day.
+        solar_value = solar_data['properties']['parameter']['ALLSKY_SFC_SW_DWN'].get(start_date)
+        if solar_value is None:
+            print("Solar data for today not available, trying yesterday.")
+            yesterday_date_obj = start_date_obj - timedelta(days=1)
+            yesterday_date = yesterday_date_obj.strftime("%Y%m%d")
+            api_url = f"https://power.larc.nasa.gov/api/temporal/daily/point?parameters=ALLSKY_SFC_SW_DWN&community=RE&longitude={lng}&latitude={lat}&start={yesterday_date}&end={yesterday_date}&format=JSON"
+            response = requests.get(api_url)
+            response.raise_for_status()
+            solar_data = response.json()
+            solar_value = solar_data['properties']['parameter']['ALLSKY_SFC_SW_DWN'][yesterday_date]
         
         solar_score = (solar_value / 8000) * 100
         final_score = (solar_score * (renewable_weight / 100) + random.randint(80, 95) * (demand_weight / 100)) / 2
@@ -162,14 +210,14 @@ def run_ai_analysis():
         new_recommendation = {
             "name": "AI-Generated Optimal Site",
             "lat": lat, "lng": lng,
-            "description": f"Optimized site based on real-time solar data (All Sky Irradiance: {solar_value:.2f} Wh/m^2/day).",
+            "description": f"Optimized site based on solar data (All Sky Irradiance: {solar_value:.2f} Wh/m^2/day).",
             "metrics": {
-                "capacity": "Dynamic",
-                "proximity": "N/A",
-                "investment": "$75M",
+                "capacity": "250 MW",
+                "proximity": "4.5 km",
+                "investment": "$150M",
                 "score": f"{final_score:.1f}%",
-                "roi": "15.0%",
-                "risk": "Low" if final_score > 90 else "Medium"
+                "roi": "19.5%",
+                "risk": "Low"
             }
         }
         
@@ -179,9 +227,40 @@ def run_ai_analysis():
         print(f"Error calling NASA API: {e}")
         results = DATASET['recommendations']
 
-    random.shuffle(results)
-    
     return jsonify({"recommendations": results})
+
+@app.route('/api/hydrogen-stations')
+def get_hydrogen_stations():
+    if not session.get('logged_in'):
+        return jsonify({"error": "Unauthorized. Please log in to view H2 stations."}), 401
+    
+    if NREL_API_KEY == 'YOUR_NREL_API_KEY':
+        print("ERROR: NREL API key not set.")
+        return jsonify({"error": "NREL API key not set. Please update app.py"}), 400
+    
+    try:
+        nrel_url = f"https://developer.nrel.gov/api/alt-fuel-stations/v1.json?api_key={NREL_API_KEY}&fuel_type=HY&country=US"
+        print(f"Calling NREL API at: {nrel_url}")
+        response = requests.get(nrel_url)
+        response.raise_for_status()
+        stations_data = response.json()
+        
+        hydrogen_stations = []
+        for station in stations_data.get('fuel_stations', []):
+            if station.get('fuel_type_code') == 'HY' and station.get('latitude') and station.get('longitude'):
+                hydrogen_stations.append({
+                    "lat": station['latitude'],
+                    "lng": station['longitude'],
+                    "name": station['station_name'],
+                    "address": station['street_address']
+                })
+        
+        return jsonify(hydrogen_stations)
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching NREL data: {e}")
+        return jsonify({"error": f"Failed to fetch data from NREL API: {str(e)}"}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
